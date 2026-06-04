@@ -1,0 +1,1361 @@
+<!--
+Merged version request:
+Base: FarsiReshaper_Hebrew.html
+Hebrew logic source: hebrew_reverser.html
+
+NOTE:
+This merged file contains both source files for further integration.
+The Hebrew reverser should be used as the authoritative Hebrew implementation.
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Farsi / Arabic / Hebrew Tool</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@700;800&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;700&display=swap');
+
+  :root {
+    --bg: #0d0d12;
+    --panel: #13131c;
+    --border: #252535;
+    --accent: #7c6af7;
+    --accent2: #f7a06a;
+    --green: #6af7a0;
+    --red: #f76a6a;
+    --blue: #6ab8f7;
+    --text: #e2e0f0;
+    --dim: #555570;
+    --input-bg: #0a0a10;
+    --hebrew: #d4a8ff;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 36px 20px 60px;
+    gap: 28px;
+  }
+
+  .header { text-align: center; width: 100%; max-width: 900px; }
+  .header h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: -1px;
+    background: linear-gradient(90deg, var(--accent), var(--hebrew));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .header p { color: var(--dim); font-size: 0.72rem; margin-top: 6px; line-height: 1.7; }
+
+  .badge-row { display: flex; gap: 8px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+  .badge {
+    font-size: 0.63rem; padding: 3px 10px; border-radius: 20px;
+    border: 1px solid var(--border); color: var(--dim); letter-spacing: 0.08em;
+  }
+  .badge.on  { border-color: var(--accent);  color: var(--accent); }
+  .badge.heb { border-color: var(--hebrew);  color: var(--hebrew); }
+
+  .main { width: 100%; max-width: 900px; display: flex; flex-direction: column; gap: 20px; }
+
+  /* ── Mode Tab Switcher ── */
+  .mode-tabs {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    width: fit-content;
+  }
+  .mode-tab {
+    background: transparent;
+    border: none;
+    color: var(--dim);
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 10px 22px;
+    transition: all 0.18s;
+    border-right: 1px solid var(--border);
+    position: relative;
+  }
+  .mode-tab:last-child { border-right: none; }
+  .mode-tab:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+  .mode-tab.active-arabic  { background: rgba(124,106,247,0.15); color: var(--accent); }
+  .mode-tab.active-hebrew  { background: rgba(212,168,255,0.12); color: var(--hebrew); }
+
+  /* ── Settings ── */
+  .settings {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 20px;
+    display: flex; gap: 20px; flex-wrap: wrap; align-items: center;
+  }
+  .settings label {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.72rem; color: var(--dim); cursor: pointer; user-select: none;
+  }
+  .settings input[type=checkbox] { accent-color: var(--accent); width: 14px; height: 14px; }
+  .settings select {
+    background: var(--input-bg); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem; padding: 4px 8px; outline: none;
+  }
+  .settings .sep { width: 1px; height: 20px; background: var(--border); }
+
+  /* ── Hebrew settings panel ── */
+  .heb-settings {
+    background: var(--panel);
+    border: 1px solid var(--hebrew);
+    border-radius: 10px;
+    padding: 14px 20px;
+    display: none;
+    gap: 16px; flex-wrap: wrap; align-items: center;
+  }
+  .heb-settings.visible { display: flex; }
+  .heb-settings label {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.72rem; color: var(--dim); cursor: pointer;
+  }
+  .heb-settings input[type=checkbox] { accent-color: var(--hebrew); width: 14px; height: 14px; }
+  .heb-tag {
+    font-size: 0.65rem; color: var(--hebrew); letter-spacing: 0.1em;
+    text-transform: uppercase; font-weight: 700;
+  }
+
+  /* ── IO ── */
+  .io-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  @media(max-width: 600px) { .io-row { grid-template-columns: 1fr; } }
+
+  .io-box { display: flex; flex-direction: column; gap: 8px; }
+  .io-label {
+    font-size: 0.65rem; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--dim); display: flex; align-items: center; justify-content: space-between;
+  }
+  .io-label .copy-btn {
+    background: transparent; border: 1px solid var(--border); border-radius: 5px;
+    color: var(--dim); cursor: pointer; font-size: 0.62rem; padding: 2px 8px;
+    font-family: 'JetBrains Mono', monospace; transition: all 0.15s;
+  }
+  .io-label .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .io-label .copy-btn.copied { border-color: var(--green); color: var(--green); }
+
+  textarea {
+    background: var(--input-bg); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-size: 1.4rem; padding: 14px; width: 100%;
+    resize: vertical; outline: none; min-height: 150px; line-height: 2;
+    transition: border-color 0.2s;
+  }
+  textarea:focus { border-color: var(--accent); }
+
+  #inputArea  { direction: rtl; font-family: 'Amiri', serif; }
+  #outputArea { direction: rtl; font-family: 'Amiri', serif; color: var(--green); cursor: default; }
+
+  /* Hebrew textarea font override */
+  .mode-heb #inputArea  { font-family: 'Frank Ruhl Libre', serif; }
+  .mode-heb #outputArea { font-family: 'Frank Ruhl Libre', serif; color: var(--hebrew); }
+  .mode-heb textarea:focus { border-color: var(--hebrew); }
+
+  /* ── Presets ── */
+  .presets { display: flex; gap: 8px; flex-wrap: wrap; }
+  .preset {
+    background: transparent; border: 1px solid var(--border); border-radius: 6px;
+    color: var(--dim); cursor: pointer; font-size: 1rem; padding: 4px 12px;
+    transition: all 0.15s; direction: rtl; font-family: 'Amiri', serif;
+  }
+  .preset:hover { border-color: var(--accent2); color: var(--accent2); }
+  .preset.heb-preset { font-family: 'Frank Ruhl Libre', serif; font-size: 0.95rem; }
+  .preset.heb-preset:hover { border-color: var(--hebrew); color: var(--hebrew); }
+
+  /* ── Action bar ── */
+  .action-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .btn {
+    background: var(--accent); border: none; border-radius: 8px; color: #fff;
+    cursor: pointer; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;
+    font-weight: 700; letter-spacing: 0.05em; padding: 10px 22px;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn:hover { opacity: 0.88; }
+  .btn:active { transform: scale(0.97); }
+  .btn.hebrew-btn { background: var(--hebrew); color: #1a0a2e; }
+  .btn.secondary {
+    background: transparent; border: 1px solid var(--border); color: var(--dim);
+  }
+  .btn.secondary:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  /* ── Unity box ── */
+  .unity-box {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px;
+  }
+  .unity-box.heb-mode { border-color: rgba(212,168,255,0.3); }
+  .unity-box h3 {
+    font-family: 'Syne', sans-serif; font-size: 0.8rem; color: var(--accent2);
+    letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 14px;
+  }
+  .unity-output {
+    background: var(--input-bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px; direction: rtl; font-size: 1.1rem; color: var(--green);
+    min-height: 50px; word-break: break-all; font-family: 'Amiri', serif; line-height: 2;
+  }
+  .unity-output.heb { font-family: 'Frank Ruhl Libre', serif; color: var(--hebrew); }
+
+  /* ── Hebrew word chips ── */
+  .heb-word-row {
+    display: none; flex-wrap: wrap; gap: 8px;
+    background: var(--input-bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px; min-height: 60px;
+  }
+  .heb-word-row.visible { display: flex; }
+  .word-chip {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 6px 12px; border-radius: 6px; border: 1px solid;
+    animation: chipPop 0.18s ease;
+  }
+  @keyframes chipPop {
+    0%   { transform: scale(0.8); opacity: 0; }
+    60%  { transform: scale(1.06); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .chip-orig { font-family: 'Frank Ruhl Libre', serif; font-size: 1rem; color: var(--dim); }
+  .chip-out  { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 700; }
+  .chip-tag  { font-size: 0.55rem; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.6; }
+
+  .word-chip.normal  { border-color: var(--hebrew); background: rgba(212,168,255,0.06); }
+  .word-chip.normal  .chip-out  { color: var(--hebrew); }
+  .word-chip.normal  .chip-tag  { color: var(--hebrew); }
+  .word-chip.reversed { border-color: var(--accent2); background: rgba(247,160,106,0.06); }
+  .word-chip.reversed .chip-out { color: var(--accent2); }
+  .word-chip.reversed .chip-tag { color: var(--accent2); }
+
+  .status { font-size: 0.68rem; color: var(--dim); min-height: 18px; }
+  .status.ok   { color: var(--green); }
+  .status.err  { color: var(--red); }
+  .status.warn { color: var(--accent2); }
+  .status.heb  { color: var(--hebrew); }
+
+  .divider { border: none; border-top: 1px solid var(--border); width: 100%; }
+
+  /* ── Hebrew info panel ── */
+  .heb-info {
+    background: rgba(212,168,255,0.06);
+    border: 1px solid rgba(212,168,255,0.2);
+    border-radius: 8px; padding: 12px 16px;
+    font-size: 0.7rem; color: var(--dim); line-height: 1.8;
+    display: none;
+  }
+  .heb-info.visible { display: block; }
+  .heb-info strong { color: var(--hebrew); }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Amiri&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div class="header">
+  <h1>Farsi · Arabic · Hebrew</h1>
+  <p>Reshapes Arabic/Persian text for Unity TMP — plus Hebrew word reversal for RTL renderers.</p>
+  <div class="badge-row">
+    <span class="badge on">Arabic ✓</span>
+    <span class="badge on">Persian ✓</span>
+    <span class="badge on">Harakat ✓</span>
+    <span class="badge on">Laa combos ✓</span>
+    <span class="badge on">Already-reshaped guard ✓</span>
+    <span class="badge heb">Hebrew reverse ✓</span>
+    <span class="badge on">No server</span>
+  </div>
+</div>
+
+<div class="main" id="mainContainer">
+
+  <!-- Mode Tabs -->
+  <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+    <div class="mode-tabs">
+      <button class="mode-tab active-arabic" id="tabArabic" onclick="setMode('arabic')">
+        🔤 Arabic / Persian
+      </button>
+      </div>
+    <span style="font-size:0.65rem;color:var(--dim)">Arabic/Persian + Hebrew support in one page</span>
+  </div>
+
+  <!-- Arabic Settings -->
+  <div class="settings" id="arabicSettings">
+    <label><input type="checkbox" id="chkArabicNums" checked> Arabic nums (٠١٢…)</label>
+    <label><input type="checkbox" id="chkPersianNums"> Persian nums (۰۱۲…)</label>
+    <label><input type="checkbox" id="chkHarakat" checked> Harakat</label>
+    <div class="sep"></div>
+    <label>Lang:
+      <select id="selLang">
+        <option value="fa">fa — Persian</option>
+        <option value="ar">ar — Arabic</option>
+      </select>
+    </label>
+    <div class="sep"></div>
+    <label><input type="checkbox" id="chkLive" checked> Live</label>
+  </div>
+
+  <!-- Hebrew Settings -->
+  <div class="heb-settings" id="hebrewSettings">
+    <span class="heb-tag">✡ Hebrew Mode</span>
+    <div class="sep"></div>
+    <label><input type="checkbox" id="chkHebReverseWords" checked> Reverse word order (sentence)</label>
+    <label><input type="checkbox" id="chkHebReverseEach"> Also reverse each word's letters</label>
+    <label><input type="checkbox" id="chkHebLive" checked> Live</label>
+  </div>
+
+  <!-- Hebrew info -->
+  <div class="heb-info" id="hebInfo">
+    <strong>Why reverse Hebrew for Unity?</strong> — Unity's TMP doesn't natively handle RTL BiDi.
+    Hebrew input typed left-to-right stores as <strong>logical order</strong>. To display correctly
+    in Unity TMP (which renders left-to-right), you reverse the <strong>word order</strong> of each line.
+    Individual letter order stays intact — Hebrew glyphs don't need reshaping like Arabic does.
+  </div>
+
+  <!-- Presets -->
+  <div>
+    <div class="io-label" style="margin-bottom:8px" id="presetsLabel">Quick presets</div>
+    <div class="presets" id="arabicPresets">
+      <button class="preset" onclick="loadPreset('مرحبا بالعالم')">مرحبا بالعالم</button>
+      <button class="preset" onclick="loadPreset('سلام دنیا')">سلام دنیا</button>
+      <button class="preset" onclick="loadPreset('بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ')">بِسْمِ اللَّهِ</button>
+      <button class="preset" onclick="loadPreset('لا إله إلا الله')">لا إله إلا الله</button>
+      <button class="preset" onclick="loadPreset('گل و بلبل در باغ')">گل و بلبل</button>
+      <button class="preset" onclick="loadPreset('Unity 3D بازی سازی')">Unity 3D بازی سازی</button>
+    </div>
+    <div class="presets" id="hebrewPresets" style="display:none">
+      <button class="preset heb-preset" onclick="loadPreset('שלום עולם')">שלום עולם</button>
+      <button class="preset heb-preset" onclick="loadPreset('ברוך הבא למשחק')">ברוך הבא למשחק</button>
+      <button class="preset heb-preset" onclick="loadPreset('לחץ להתחיל')">לחץ להתחיל</button>
+      <button class="preset heb-preset" onclick="loadPreset('הגדרות ועזרה')">הגדרות ועזרה</button>
+      <button class="preset heb-preset" onclick="loadPreset('Unity שלום מ')">Unity שלום מ</button>
+      <button class="preset heb-preset" onclick="loadPreset('ניקוד: 1000 נקודות')">ניקוד: 1000 נקודות</button>
+    </div>
+  </div>
+
+  <!-- IO -->
+  <div class="io-row" id="mainContainer">
+    <div class="io-box">
+      <div class="io-label">
+        <span id="inputLabel">Input (Arabic / Persian)</span>
+        <button class="copy-btn" onclick="clearInput()">Clear</button>
+      </div>
+      <textarea id="inputArea" placeholder="اكتب هنا أو اختر نموذجاً..." rows="6"></textarea>
+    </div>
+    <div class="io-box">
+      <div class="io-label">
+        <span id="outputLabel">Reshaped Output</span>
+        <button class="copy-btn" id="copyBtn" onclick="copyArabicOutput()">Copy</button>
+      </div>
+      <textarea id="outputArea" readonly rows="6" placeholder="النتيجة هنا..."></textarea>
+    </div>
+  </div>
+
+  <!-- Action bar -->
+  <div class="action-bar">
+    <button class="btn" id="mainBtn" onclick="doProcess()">▶ Reshape</button>
+    <button class="btn secondary" onclick="swapIO()">⇄ Swap</button>
+    <span class="status" id="status"></span>
+  </div>
+
+  <!-- Hebrew word-chip breakdown -->
+  <div class="heb-word-row" id="hebWordRow"></div>
+
+  <hr class="divider">
+
+  <!-- Unity box -->
+  <div class="unity-box" id="unityBox">
+    <h3>⬡ Unity TMP Ready String</h3>
+    <div class="unity-output" id="unityOut">—</div>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn secondary" onclick="copyUnity()">Copy for Unity</button>
+      <button class="btn secondary" onclick="copyAsString()">Copy as C# string</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+//  MODE MANAGEMENT
+// ══════════════════════════════════════════════════════════════════
+var currentMode = 'arabic'; // 'arabic' | 'hebrew'
+
+function setMode(mode) {
+  currentMode = mode;
+  var isHeb = mode === 'hebrew';
+
+  // Tabs
+  document.getElementById('tabArabic').className = 'mode-tab' + (isHeb ? '' : ' active-arabic');
+  document.getElementById('tabHebrew').className = 'mode-tab' + (isHeb ? ' active-hebrew' : '');
+
+  // Settings panels
+  document.getElementById('arabicSettings').style.display = isHeb ? 'none' : '';
+  document.getElementById('hebrewSettings').classList.toggle('visible', isHeb);
+  document.getElementById('hebInfo').classList.toggle('visible', isHeb);
+
+  // Presets
+  document.getElementById('arabicPresets').style.display = isHeb ? 'none' : '';
+  document.getElementById('hebrewPresets').style.display = isHeb ? 'flex' : 'none';
+
+  // Labels
+  document.getElementById('inputLabel').textContent  = isHeb ? 'Input (Hebrew)' : 'Input (Arabic / Persian)';
+  document.getElementById('outputLabel').textContent = isHeb ? 'Reversed Output (Unity Ready)' : 'Reshaped Output';
+  document.getElementById('mainBtn').textContent      = isHeb ? '✡ Reverse for Unity' : '▶ Reshape';
+  document.getElementById('mainBtn').className        = isHeb ? 'btn hebrew-btn' : 'btn';
+
+  // Textarea placeholder & font
+  document.getElementById('inputArea').placeholder  = isHeb ? 'הקלד עברית כאן...' : 'اكتب هنا أو اختر نموذجاً...';
+  document.getElementById('outputArea').placeholder = isHeb ? 'תוצאה כאן...' : 'النتيجة هنا...';
+
+  // Font classes
+  var body = document.body;
+  if (isHeb) body.classList.add('mode-heb');
+  else       body.classList.remove('mode-heb');
+
+  // Unity box
+  document.getElementById('unityBox').classList.toggle('heb-mode', isHeb);
+  document.getElementById('unityOut').classList.toggle('heb', isHeb);
+
+  // Hebrew word chips
+  document.getElementById('hebWordRow').classList.toggle('visible', false);
+
+  // Clear on switch
+  clearInput();
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  ARABIC / FARSI RESHAPER (original logic)
+// ══════════════════════════════════════════════════════════════════
+var left   = "ڤـئظشسيیبلپتنمكکگطضصثقفغعهخچحج";
+var right  = "ڤـئؤرلالآىیآةوزژظشسيپبللأاأتنمكکگطضصثقفغعهخحچجدذلإإ";
+var arnumbs = "٠١٢٣٤٥٦٧٨٩";
+var fanumbs = "۰۱۲۳۴۵۶۷۸۹";
+var ennumbs = "0123456789";
+var harakat_chars = "ًٌٍَُِّْ";
+var symbols = "ـ.،؟ @#$%^&*-+|\\/=~,:";
+var laIndex = 168;
+
+var unicode =
+  "ﺁﺁﺂﺂ" + "ﺃﺃﺄﺄ" + "ﺇﺇﺈﺈ" + "ﺍﺍﺎﺎ" + "ﺏﺑﺒﺐ" + "ﺕﺗﺘﺖ" +
+  "ﺙﺛﺜﺚ" + "ﺝﺟﺠﺞ" + "ﺡﺣﺤﺢ" + "ﺥﺧﺨﺦ" + "ﺩﺩﺪﺪ" + "ﺫﺫﺬﺬ" +
+  "ﺭﺭﺮﺮ" + "ﺯﺯﺰﺰ" + "ﺱﺳﺴﺲ" + "ﺵﺷﺸﺶ" + "ﺹﺻﺼﺺ" + "ﺽﺿﻀﺾ" +
+  "ﻁﻃﻄﻂ" + "ﻅﻇﻈﻆ" + "ﻉﻋﻌﻊ" + "ﻍﻏﻐﻎ" + "ﻑﻓﻔﻒ" + "ﻕﻗﻘﻖ" +
+  "ﻙﻛﻜﻚ" + "ﻝﻟﻠﻞ" + "ﻡﻣﻤﻢ" + "ﻥﻧﻨﻦ" + "ﻩﻫﻬﻪ" + "ﻭﻭﻮﻮ" +
+  "ﻱﻳﻴﻲ" + "ﺓﺓﺔﺔ" + "ﺅﺅﺆﺆ" + "ﺉﺋﺌﺊ" + "ﻯﻯﻰﻰ" +
+  "گﮔﮕﮓ" + "چﭼﭽﭻ" + "پﭘﭙﭗ" + "ژﮊﮋﮋ" + "ﯼﯾﯿﯽ" + "کﮐﮑﮏ" +
+  "ﭪﭬﭭﭫ" +
+  "ﻵﻵﻶﻶ" + "ﻷﻷﻸﻸ" + "ﻹﻹﻺﻺ" + "ﻻﻻﻼﻼ";
+
+var arabic =
+  "آ"+"أ"+"إ"+"ا"+"ب"+"ت"+"ث"+"ج"+"ح"+"خ"+"د"+"ذ"+"ر"+"ز"+
+  "س"+"ش"+"ص"+"ض"+"ط"+"ظ"+"ع"+"غ"+"ف"+"ق"+"ك"+"ل"+"م"+"ن"+
+  "ه"+"و"+"ي"+"ة"+"ؤ"+"ئ"+"ى"+"گ"+"چ"+"پ"+"ژ"+"ی"+"ک"+"ڤ";
+
+var notEng = arabic + harakat_chars + "ء،؟";
+var brackets = "(){}[]";
+
+function ProcessInput(text, opts) {
+  var e_numbers = opts.arabicNums ? 1 : 0;
+  var f_numbers = opts.persianNums ? 1 : 0;
+  var e_harakat = opts.harakat ? 1 : 0;
+  var old = ""; var output_text = ""; var tstr = "";
+  var x = text.split(""); var len = x.length;
+
+  for (var g = 0; g < len; g++) {
+    var b = 1, a = 1;
+    while (harakat_chars.indexOf(x[g - b]) >= 0) b++;
+    while (harakat_chars.indexOf(x[g + a]) >= 0) a++;
+    var pos;
+    if (g === 0) {
+      pos = (right.indexOf(x[a]) >= 0) ? 1 : 0;
+    } else if (g === len - 1) {
+      pos = (left.indexOf(x[len - b - 1]) >= 0) ? 3 : 0;
+    } else {
+      if (left.indexOf(x[g - b]) < 0) pos = (right.indexOf(x[g + a]) < 0) ? 0 : 1;
+      else pos = (right.indexOf(x[g + a]) >= 0) ? 2 : 3;
+    }
+    var ch = x[g];
+    if (ch === "\n") { old = old + output_text + "\n"; output_text = ""; }
+    else if (ch === "\r") {}
+    else if (ch === "ء") { output_text = "ﺀ" + output_text; }
+    else if (brackets.indexOf(ch) >= 0) {
+      var asd = brackets.indexOf(ch);
+      output_text = ((asd % 2 === 0) ? brackets.charAt(asd+1) : brackets.charAt(asd-1)) + output_text;
+    } else if (arabic.indexOf(ch) >= 0) {
+      if (ch === "ل") {
+        var ar_pos = arabic.indexOf(x[g + 1]);
+        if (ar_pos >= 0 && ar_pos < 4) { output_text = unicode.charAt(ar_pos*4+pos+laIndex)+output_text; g++; }
+        else output_text = unicode.charAt(arabic.indexOf(ch)*4+pos)+output_text;
+      } else output_text = unicode.charAt(arabic.indexOf(ch)*4+pos)+output_text;
+    } else if (symbols.indexOf(ch) >= 0) { output_text = ch + output_text; }
+    else if (harakat_chars.indexOf(ch) >= 0) { if (e_harakat===1) output_text = ch+output_text; }
+    else if (unicode.indexOf(ch) >= 0) {
+      var uni_pos = unicode.indexOf(ch); var la_pos = uni_pos;
+      if (la_pos >= laIndex) {
+        for (var temp=4;temp<20;temp+=4) {
+          if (la_pos < temp+laIndex) { output_text=arabic.charAt(temp/4-1)+output_text; output_text="ل"+output_text; temp=30; }
+        }
+      } else {
+        for (var temp=4;temp<180;temp+=4) { if (uni_pos<temp) { output_text=arabic.charAt(temp/4-1)+output_text; temp=200; } }
+      }
+    } else {
+      var h = g; tstr = "";
+      while (notEng.indexOf(x[h])<0 && unicode.indexOf(x[h])<0 && brackets.indexOf(x[h])<0 && x[h]!==undefined) {
+        var hch = x[h];
+        if (ennumbs.indexOf(hch)>=0) { var mn=ennumbs.indexOf(hch); if(e_numbers===1) hch=arnumbs.charAt(mn); else if(f_numbers===1) hch=fanumbs.charAt(mn); }
+        else if (arnumbs.indexOf(hch)>=0) { if(e_numbers===0) hch=ennumbs.charAt(arnumbs.indexOf(hch)); }
+        else if (fanumbs.indexOf(hch)>=0) { if(f_numbers===0) hch=ennumbs.charAt(arnumbs.indexOf(hch)); }
+        tstr+=hch; h++; if(x[h]==="\n") break;
+      }
+      var xstr=tstr.split(""); var r=xstr.length-1;
+      if (r===1&&xstr[1]===" ") tstr=" "+xstr[0];
+      else { while(xstr[r]===" ") { tstr=" "+tstr.substring(0,tstr.length-1); r--; } }
+      output_text = tstr+output_text; tstr=""; g=h-1;
+    }
+  }
+  return old + output_text;
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  ALREADY-RESHAPED GUARD
+// ══════════════════════════════════════════════════════════════════
+function isAlreadyReshaped(text) {
+  for (var i = 0; i < text.length; i++) {
+    var cp = text.charCodeAt(i);
+    if ((cp >= 0xFB50 && cp <= 0xFDFF) || (cp >= 0xFE70 && cp <= 0xFEFF)) return true;
+  }
+  return false;
+}
+function countReshaped(text) {
+  var n = 0;
+  for (var i = 0; i < text.length; i++) {
+    var cp = text.charCodeAt(i);
+    if ((cp >= 0xFB50 && cp <= 0xFDFF) || (cp >= 0xFE70 && cp <= 0xFEFF)) n++;
+  }
+  return n;
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  HEBREW REVERSAL LOGIC
+//  Hebrew Unicode block: 0590–05FF (letters + cantillation + points)
+//  For Unity TMP: reverse word ORDER per line (logical → visual RTL)
+//  Optional: also reverse each word's characters
+// ══════════════════════════════════════════════════════════════════
+
+function isHebrewChar(cp) {
+  return (cp >= 0x0590 && cp <= 0x05FF) || (cp >= 0xFB1D && cp <= 0xFB4F);
+}
+
+function containsHebrew(text) {
+  for (var i = 0; i < text.length; i++) {
+    if (isHebrewChar(text.charCodeAt(i))) return true;
+  }
+  return false;
+}
+
+// Split line into tokens preserving spaces/punctuation clusters
+function splitLineTokens(line) {
+  // Split on space boundaries, keeping spaces as separate tokens
+  return line.split(/(\s+)/);
+}
+
+function ProcessHebrew(text, opts) {
+  var reverseWords  = opts.reverseWords;
+  var reverseEach   = opts.reverseEach;
+
+  var lines = text.split('\n');
+  var resultLines = [];
+
+  for (var l = 0; l < lines.length; l++) {
+    var line = lines[l];
+    if (!line.trim()) { resultLines.push(line); continue; }
+
+    // Split into word tokens (words + whitespace preserved)
+    var tokens = line.split(/(\s+)/);
+    var words = [];
+    var spaces = [];
+
+    // Separate word tokens from space tokens
+    for (var t = 0; t < tokens.length; t++) {
+      if (/^\s+$/.test(tokens[t])) spaces.push(tokens[t]);
+      else words.push(tokens[t]);
+    }
+
+    // Process each word
+    var processed = words.map(function(word) {
+      if (!word) return word;
+      if (reverseEach) return word.split('').reverse().join('');
+      return word;
+    });
+
+    // Reverse word order for the line if enabled
+    if (reverseWords) processed = processed.reverse();
+
+    // Reweave with original spaces
+    var out = '';
+    for (var w = 0; w < processed.length; w++) {
+      out += processed[w];
+      if (w < spaces.length) out += spaces[w];
+    }
+
+    resultLines.push(out);
+  }
+
+  return resultLines.join('\n');
+}
+
+// Build the per-word chip breakdown for Hebrew
+function buildHebrewChips(original, result, opts) {
+  var row = document.getElementById('hebWordRow');
+  row.innerHTML = '';
+
+  var origWords   = original.trim().split(/\s+/).filter(Boolean);
+  var resultWords = result.trim().split(/\s+/).filter(Boolean);
+
+  origWords.forEach(function(word, i) {
+    var outWord = resultWords[i] !== undefined ? resultWords[i] : word;
+    var wasReversed = opts.reverseEach && word.split('').reverse().join('') === outWord;
+    var chip = document.createElement('div');
+    chip.className = 'word-chip ' + (wasReversed ? 'reversed' : 'normal');
+    chip.style.animationDelay = (i * 0.05) + 's';
+    chip.innerHTML =
+      '<span class="chip-orig">' + word + '</span>' +
+      '<span class="chip-out">'  + outWord + '</span>' +
+      '<span class="chip-tag">'  + (wasReversed ? 'letter-reversed' : 'word-reversed') + '</span>';
+    row.appendChild(chip);
+  });
+
+  row.classList.toggle('visible', origWords.length > 0);
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  MAIN DISPATCH
+// ══════════════════════════════════════════════════════════════════
+function getArabicOpts() {
+  return {
+    arabicNums:  document.getElementById('chkArabicNums').checked,
+    persianNums: document.getElementById('chkPersianNums').checked,
+    harakat:     document.getElementById('chkHarakat').checked,
+    lang:        document.getElementById('selLang').value,
+  };
+}
+function getHebrewOpts() {
+  return {
+    reverseWords: document.getElementById('chkHebReverseWords').checked,
+    reverseEach:  document.getElementById('chkHebReverseEach').checked,
+  };
+}
+
+function doProcess() {
+  if (currentMode === 'arabic') doReshape();
+  else doHebrew();
+}
+
+function doReshape() {
+  var input = document.getElementById('inputArea').value;
+  if (!input.trim()) { setStatus('No input!', 'err'); return; }
+
+  if (isAlreadyReshaped(input)) {
+    var n = countReshaped(input);
+    document.getElementById('outputArea').value = input;
+    document.getElementById('unityOut').textContent = input;
+    setStatus('⚠ Already reshaped (' + n + ' glyph chars) — passed through unchanged.', 'warn');
+    document.getElementById('inputArea').style.borderColor = 'var(--accent2)';
+    setTimeout(function(){ document.getElementById('inputArea').style.borderColor=''; }, 2000);
+    return;
+  }
+
+  document.getElementById('inputArea').style.borderColor = '';
+  try {
+    var result = ProcessInput(input, getArabicOpts());
+    document.getElementById('outputArea').value = result;
+    document.getElementById('unityOut').textContent = result;
+    setStatus('✓ Reshaped ' + input.length + ' chars → ' + result.length + ' chars', 'ok');
+    document.getElementById('hebWordRow').classList.remove('visible');
+  } catch(e) { setStatus('Error: ' + e.message, 'err'); }
+}
+
+function doHebrew() {
+  var input = document.getElementById('inputArea').value;
+  if (!input.trim()) { setStatus('No input!', 'err'); return; }
+
+  if (!containsHebrew(input)) {
+    setStatus('⚠ No Hebrew characters detected.', 'warn');
+  }
+
+  var opts = getHebrewOpts();
+  try {
+    var result = ProcessHebrew(input, opts);
+    document.getElementById('outputArea').value = result;
+    document.getElementById('unityOut').textContent = result;
+    var wc = input.trim().split(/\s+/).filter(Boolean).length;
+    setStatus('✡ ' + wc + ' words processed → word order ' + (opts.reverseWords ? 'reversed' : 'kept') + (opts.reverseEach ? ' + letters reversed' : ''), 'heb');
+    buildHebrewChips(input, result, opts);
+  } catch(e) { setStatus('Error: ' + e.message, 'err'); }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  SHARED UI
+// ══════════════════════════════════════════════════════════════════
+function setStatus(msg, type) {
+  var el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = 'status ' + (type || '');
+}
+
+function loadPreset(text) {
+  document.getElementById('inputArea').value = text;
+  var liveId = currentMode === 'hebrew' ? 'chkHebLive' : 'chkLive';
+  if (document.getElementById(liveId).checked) doProcess();
+}
+
+function clearInput() {
+  document.getElementById('inputArea').value = '';
+  document.getElementById('outputArea').value = '';
+  document.getElementById('unityOut').textContent = '—';
+  document.getElementById('hebWordRow').classList.remove('visible');
+  setStatus('');
+}
+
+function swapIO() {
+  var i = document.getElementById('inputArea');
+  var o = document.getElementById('outputArea');
+  var tmp = i.value; i.value = o.value; o.value = tmp;
+  doProcess();
+}
+
+
+function copyOutput()
+{
+    var text = document.getElementById('outputArea').value;
+
+    if (!text) return;
+
+    if (navigator.clipboard && window.isSecureContext)
+    {
+        navigator.clipboard.writeText(text)
+            .then(function(){ ShowCopySuccess(); })
+            .catch(function(){ FallbackCopy(text); });
+    }
+    else
+    {
+        FallbackCopy(text);
+    }
+}
+
+function FallbackCopy(text)
+{
+    var temp = document.createElement("textarea");
+    temp.value = text;
+    document.body.appendChild(temp);
+    temp.focus();
+    temp.select();
+
+    try
+    {
+        document.execCommand("copy");
+        ShowCopySuccess();
+    }
+    catch(e)
+    {
+        alert("Copy failed. Press Ctrl+C manually.");
+    }
+
+    document.body.removeChild(temp);
+}
+
+function ShowCopySuccess()
+{
+    var btn = document.getElementById("copyBtn");
+    if(!btn) return;
+
+    btn.textContent = "✓ Copied";
+    btn.classList.add("copied");
+
+    setTimeout(function()
+    {
+        btn.textContent = "Copy";
+        btn.classList.remove("copied");
+    }, 1500);
+}
+
+
+function copyUnity() {
+  navigator.clipboard.writeText(document.getElementById('unityOut').textContent)
+    .then(function(){ setStatus('✓ Copied for Unity!', 'ok'); });
+}
+function copyAsString() {
+  var text = document.getElementById('unityOut').textContent;
+  var cs = 'string reshaped = "' + text.replace(/\\/g,'\\\\').replace(/"/g,'\\"') + '";';
+  navigator.clipboard.writeText(cs).then(function(){ setStatus('✓ Copied as C# string!', 'ok'); });
+}
+
+// Live listeners
+document.getElementById('inputArea').addEventListener('input', function() {
+  var liveId = currentMode === 'hebrew' ? 'chkHebLive' : 'chkLive';
+  if (document.getElementById(liveId).checked) doProcess();
+});
+
+['chkArabicNums','chkPersianNums','chkHarakat','selLang'].forEach(function(id) {
+  document.getElementById(id).addEventListener('change', function() {
+    if (currentMode==='arabic' && document.getElementById('inputArea').value) doReshape();
+  });
+});
+['chkHebReverseWords','chkHebReverseEach'].forEach(function(id) {
+  document.getElementById(id).addEventListener('change', function() {
+    if (currentMode==='hebrew' && document.getElementById('inputArea').value) doHebrew();
+  });
+});
+
+document.getElementById('chkArabicNums').addEventListener('change', function() {
+  if (this.checked) document.getElementById('chkPersianNums').checked = false;
+});
+document.getElementById('chkPersianNums').addEventListener('change', function() {
+  if (this.checked) document.getElementById('chkArabicNums').checked = false;
+});
+
+function copyArabicOutput() {
+    var output = document.getElementById('outputArea');
+    if (!output) {
+        alert('outputArea not found');
+        return;
+    }
+
+    output.removeAttribute('readonly');
+    output.select();
+    output.setSelectionRange(0, 999999);
+
+    try {
+        document.execCommand('copy');
+    } catch(e) {}
+
+    output.setAttribute('readonly','readonly');
+
+    var btn = document.getElementById('copyBtn');
+    if(btn){
+        btn.textContent='✓ Copied';
+        setTimeout(function(){ btn.textContent='Copy'; },1500);
+    }
+}
+
+</script>
+</body>
+</html>
+
+
+<!-- ================= SECOND SOURCE (HEBREW OVERRIDE) ================= -->
+
+<!DOCTYPE html>
+<html lang="he">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hebrew Text Reverser — הפיכת טקסט עברי</title>
+<style>
+  /* ─── Reset & Base ─────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #1c1b18;
+    --surface:   #252420;
+    --surface2:  #2e2c28;
+    --border:    #3a3830;
+    --gold:      #d4a843;
+    --gold-dim:  #8a6c28;
+    --text:      #ede7d8;
+    --muted:     #7a7468;
+    --dim:       #3e3c38;
+    --green:     #5a8a5a;
+    --red:       #8a4a4a;
+    --radius:    6px;
+    --mono:      'Courier New', Courier, monospace;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+    padding: 32px 20px 60px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* ─── Layout ────────────────────────────────────────────── */
+  .page { width: 100%; max-width: 860px; }
+
+  /* ─── Header ────────────────────────────────────────────── */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 18px;
+    margin-bottom: 24px;
+  }
+
+  .tag {
+    font-size: 10px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+    margin-bottom: 6px;
+  }
+
+  h1 {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -.5px;
+  }
+
+  h1 span { color: var(--gold); }
+
+  .subtitle {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* ─── Options bar ───────────────────────────────────────── */
+  .options {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 22px;
+  }
+
+  .opt-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    color: var(--muted);
+    width: 100%;
+  }
+
+  label.chk {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    color: var(--muted);
+    cursor: pointer;
+    user-select: none;
+    transition: color .15s;
+  }
+
+  label.chk:hover { color: var(--text); }
+
+  label.chk input[type=checkbox] {
+    appearance: none;
+    width: 15px; height: 15px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--bg);
+    cursor: pointer;
+    position: relative;
+    flex-shrink: 0;
+    transition: background .15s, border-color .15s;
+  }
+
+  label.chk input[type=checkbox]:checked {
+    background: var(--gold);
+    border-color: var(--gold);
+  }
+
+  label.chk input[type=checkbox]:checked::after {
+    content: '';
+    position: absolute;
+    top: 2px; left: 3px;
+    width: 7px; height: 4px;
+    border-left: 2px solid #1c1b18;
+    border-bottom: 2px solid #1c1b18;
+    transform: rotate(-45deg);
+  }
+
+  .sep-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .sep-wrap input[type=text] {
+    width: 34px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--gold);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 2px 6px;
+    text-align: center;
+    outline: none;
+    transition: border-color .15s;
+  }
+
+  .sep-wrap input[type=text]:focus { border-color: var(--gold-dim); }
+
+  /* ─── Main editor area ──────────────────────────────────── */
+  .editor {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+
+  @media (max-width: 560px) { .editor { grid-template-columns: 1fr; } }
+
+  .pane { display: flex; flex-direction: column; gap: 6px; }
+
+  .pane-label {
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--dim);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .pane-label em {
+    font-style: normal;
+    color: var(--gold-dim);
+    font-size: 10px;
+  }
+
+  textarea {
+    width: 100%;
+    height: 280px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1.75;
+    padding: 12px 14px;
+    resize: vertical;
+    outline: none;
+    transition: border-color .15s;
+    direction: rtl;
+    unicode-bidi: bidi-override; /* force RTL display */
+  }
+
+  textarea::placeholder { color: var(--dim); }
+  textarea:focus { border-color: var(--gold-dim); }
+
+  #output {
+    background: color-mix(in srgb, var(--surface) 70%, var(--bg));
+    caret-color: transparent;
+  }
+
+  /* ─── Action bar ────────────────────────────────────────── */
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  button {
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 18px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all .15s;
+    outline: none;
+    letter-spacing: .03em;
+  }
+
+  .btn-primary {
+    background: var(--gold);
+    color: #111;
+    border-color: var(--gold);
+  }
+
+  .btn-primary:hover { background: #e8be5a; }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+  }
+
+  .btn-ghost:hover { color: var(--text); border-color: var(--dim); }
+
+  .btn-danger {
+    background: transparent;
+    color: var(--red);
+    border-color: var(--red);
+    opacity: .7;
+  }
+
+  .btn-danger:hover { opacity: 1; }
+
+  .status {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 3px;
+    background: var(--green);
+    color: #fff;
+    opacity: 0;
+    transition: opacity .3s;
+    white-space: nowrap;
+  }
+
+  .status.show { opacity: 1; }
+
+  /* ─── Info strip ────────────────────────────────────────── */
+  .info {
+    margin-top: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.8;
+  }
+
+  .info strong { color: var(--text); }
+
+  footer {
+    margin-top: 36px;
+    font-size: 10px;
+    color: var(--dim);
+    text-align: center;
+    letter-spacing: .05em;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="tag">Text Utility</div>
+    <h1>Hebrew Text <span>Reverser</span> <span style="font-size:14px;color:var(--muted);font-weight:400">הפיכת טקסט עברי</span></h1>
+    <p class="subtitle">
+      Reverses Hebrew character order line-by-line — for Photoshop, Premiere, After Effects, or any app that scrambles RTL text.
+    </p>
+  </header>
+
+  <!-- Options -->
+  <div class="options">
+    <div class="opt-title">Reversal Options</div>
+
+    <label class="chk">
+      <input type="checkbox" id="opt-nums" checked>
+      Don't reverse numbers
+    </label>
+
+    <label class="chk">
+      <input type="checkbox" id="opt-dots" checked>
+      Don't reverse <code style="color:var(--gold);font-size:11px">. / : - \</code>
+    </label>
+
+    <label class="chk">
+      <input type="checkbox" id="opt-eng" checked>
+      Don't reverse English letters
+    </label>
+
+    <label class="chk">
+      <input type="checkbox" id="opt-sep">
+      Use separator char to split line:
+    </label>
+
+    <div class="sep-wrap">
+      <input type="text" id="sep-char" maxlength="1" value="|">
+      <span style="font-size:10px;color:var(--dim)">(splits each line into segments)</span>
+    </div>
+  </div>
+
+  <!-- Editor -->
+  <div class="editor">
+    <div class="pane">
+      <div class="pane-label">Input <em>← Type or paste Hebrew here</em></div>
+      <textarea id="input"
+        placeholder="הקלד או הדבק כאן טקסט עברי...&#10;&#10;Type or paste Hebrew text here.&#10;The output updates automatically."></textarea>
+    </div>
+    <div class="pane">
+      <div class="pane-label">Reversed Output <em>← Result appears here</em></div>
+      <textarea id="output" readonly
+        placeholder="...הפלט המהופך יופיע כאן&#10;&#10;Reversed result will appear here."></textarea>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="actions">
+    <button class="btn-primary" onclick="doReverse()">↺ Reverse Now</button>
+    <button class="btn-ghost" onclick="copyOutput()">📋 Copy Output</button>
+    <button class="btn-ghost" onclick="swapPanes()">⇄ Swap</button>
+    <button class="btn-danger" onclick="clearAll()">✕ Clear</button>
+    <span class="status" id="status">Copied to clipboard!</span>
+  </div>
+
+  <!-- Info -->
+  <div class="info">
+    <strong>How it works:</strong>
+    The tool reverses the character order of each line individually. This fixes Hebrew text that appears reversed
+    in apps like Adobe Photoshop, Premiere, or After Effects which don't handle RTL properly.<br>
+    <strong>Separator mode:</strong> If a line contains the separator character (default <code style="color:var(--gold)">|</code>),
+    it is split into segments — each segment reversed independently, then the segments are reordered — useful for mixed LTR+RTL lines.
+  </div>
+
+  <footer>Works fully offline · No data sent to any server · Pure JavaScript</footer>
+</div>
+
+<script>
+  const inputEl  = document.getElementById('input');
+  const outputEl = document.getElementById('output');
+
+  // ─── Live update on every keystroke ──────────────────────
+  inputEl.addEventListener('input', doReverse);
+
+  // Re-run when any option changes
+  document.querySelectorAll('.options input').forEach(el => {
+    el.addEventListener('change', doReverse);
+  });
+
+  // ─── Core: reverse one line ───────────────────────────────
+  /**
+   * Reverses a line according to the current options.
+   *
+   * The algorithm used here is IDENTICAL to flipheb3.html:
+   *   1. Split line into "tokens": anchored (protected) vs free.
+   *   2. Collect all free chars, reverse them, slot them back in.
+   *   3. Anchored chars stay in their original positions.
+   *
+   * This correctly handles mixed Hebrew+numbers+English text.
+   */
+  function reverseLine(line, opts) {
+    if (!line) return line;
+
+    // Optional: split on separator, reverse each segment, then reverse segment order
+    if (opts.useSep && opts.sepChar && line.includes(opts.sepChar)) {
+      const segs = line.split(opts.sepChar);
+      return segs.map(s => reverseSegment(s, opts)).reverse().join(opts.sepChar);
+    }
+
+    return reverseSegment(line, opts);
+  }
+
+  function reverseSegment(seg, opts) {
+    if (!seg) return seg;
+
+    // Split into Unicode code points (handles surrogate pairs)
+    const chars = [...seg];
+
+    // Mark which positions are "anchored" (should NOT move)
+    const anchored = chars.map(ch => isAnchored(ch, opts));
+
+    // Collect the movable (non-anchored) characters
+    const movable = [];
+    for (let i = 0; i < chars.length; i++) {
+      if (!anchored[i]) movable.push(chars[i]);
+    }
+    // Reverse only the movable chars
+    movable.reverse();
+
+    // Place them back into their positions (skipping anchored slots)
+    let mi = 0;
+    return chars.map((ch, i) => (anchored[i] ? ch : movable[mi++])).join('');
+  }
+
+  function isAnchored(ch, opts) {
+    // Numbers (0-9, Arabic-Indic digits, etc.)
+    if (opts.skipNums && /[\d\u0660-\u0669\u06F0-\u06F9]/.test(ch)) return true;
+    // Punctuation: . / : - \ and space
+    if (opts.skipDots && /[.\/:\\-]/.test(ch)) return true;
+    // Latin letters (a-z A-Z and extended Latin)
+    if (opts.skipEng && /[a-zA-Z\u00C0-\u024F]/.test(ch)) return true;
+    return false;
+  }
+
+  // ─── Main reverse function ────────────────────────────────
+  function doReverse() {
+    const text = inputEl.value;
+    const opts = {
+      skipNums: document.getElementById('opt-nums').checked,
+      skipDots: document.getElementById('opt-dots').checked,
+      skipEng:  document.getElementById('opt-eng').checked,
+      useSep:   document.getElementById('opt-sep').checked,
+      sepChar:  document.getElementById('sep-char').value || '|',
+    };
+
+    const lines = text.split('\n');
+    outputEl.value = lines.map(l => reverseLine(l, opts)).join('\n');
+  }
+
+  // ─── UI helpers ───────────────────────────────────────────
+  function copyOutput() {
+    const text = outputEl.value;
+    if (!text.trim()) return;
+
+    // Modern API
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(flashStatus).catch(fallbackCopy);
+    } else {
+      fallbackCopy();
+    }
+  }
+
+  function fallbackCopy() {
+    outputEl.select();
+    outputEl.setSelectionRange(0, 99999);
+    try {
+      document.execCommand('copy');
+      flashStatus();
+    } catch(e) {
+      alert('Please press Ctrl+C / Cmd+C to copy the selected text.');
+    }
+  }
+
+  function flashStatus() {
+    const s = document.getElementById('status');
+    s.classList.add('show');
+    setTimeout(() => s.classList.remove('show'), 2000);
+  }
+
+  function clearAll() {
+    inputEl.value = '';
+    outputEl.value = '';
+    inputEl.focus();
+  }
+
+  function swapPanes() {
+    const tmp = inputEl.value;
+    inputEl.value = outputEl.value;
+    doReverse();
+    // If output was empty, put the old input back
+    if (!inputEl.value.trim()) {
+      inputEl.value = tmp;
+    }
+  }
+</script>
+</body>
+</html>
+
